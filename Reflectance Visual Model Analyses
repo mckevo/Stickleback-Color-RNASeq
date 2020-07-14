@@ -1,0 +1,32 @@
+library(pavo)
+library(rgl)
+#Importing data and inspecting
+SpecPrel <- getspec("~/Documents/DocsResearch/Female St Color/Newsome, Burns Research/NewsomeSpecData/Files1029,19Analyses", lim=c(350,700))
+Specs <- procspec(SpecPrel, fixneg="zero")
+colnames(Specs)[1] <- "wl"
+head(Specs)
+tail (Specs)
+is.rspec(Specs)
+plotsmooth(Specs, minsmooth = 0.05, maxsmooth = 0.15, curves = 5, ask = FALSE)
+SpecsSm <- procspec(Specs, opt = "smooth", span = 0.07)
+explorespec(SpecsSm, 5)
+#vision data
+fish.vision <- read.csv("stickleback.visual.sensitivityJSM1030,19.csv")
+colnames(fish.vision)[1] <- "wl"
+head(fish.vision)
+tail(fish.vision)
+fish.vision <- as.rspec(fish.vision, lim=c(350,700))
+head(fish.vision)
+tail(fish.vision)
+is.rspec(fish.vision)
+fish.vision
+explorespec(fish.vision)
+#building visual model
+SpecsSmVM <- vismodel(SpecsSm, visual = fish.vision, illum = "ideal", relative=TRUE)
+SpecsSmVM
+SpecsSmVM.colspace <- colspace(SpecsSmVM)
+head(SpecsSmVM.colspace)
+tail(SpecsSmVM.colspace)
+write.csv(SpecsSmVM.colspace,file = "SpecsSmVMCS.csv")
+tcspoints(SpecsSmVM.colspace, size = 0.005)
+#colspace output, principally r.vec, were then analyzed in jmp
