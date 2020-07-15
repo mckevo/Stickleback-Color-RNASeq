@@ -1,0 +1,33 @@
+library(DESeq2)
+library(ggplot2)
+#Get data
+countData <- read.table ("Complete_Throat_Count_Table0328,19.txt", header=TRUE)
+head(countData)
+#Add design
+stickleDesign = data.frame (
+row.names = colnames(countData),
+Color = c("Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull"),
+Sex = c("Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female"),
+Population = c("Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero"))
+stickleDesign
+#Process
+dds <- DESeqDataSetFromMatrix (countData=countData,
+colData=stickleDesign,
+design = ~Color)
+dds <- DESeq(dds)
+head(dds)
+res<-results(dds)
+head(res)
+#Get PC data
+rld <- vst(dds, blind=TRUE)
+head(rld)
+data <- plotPCA(rld, intgroup=c("Population", "Sex"), returnData=TRUE)
+percentVar <- round(100 * attr(data, "percentVar"))
+head(data)
+data
+#Preliminary figure and per cent variances for PCs
+ggplot(data, aes(PC1, PC2, color=Population, shape=Sex)) +
+geom_point(size=3) +
+xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+ylab(paste0("PC2: ",percentVar[2],"% variance"))
+#then exported first two PCs and ran ANOVAs, made figures in JMP
