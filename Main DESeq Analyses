@@ -1,0 +1,24 @@
+library(DESeq2)
+#Get data, review
+countData <- read.table ("Complete_Throat_Count_Table0328,19.txt", header=TRUE)
+head(countData)
+names(countData)
+#add design and check
+stickleDesign = data.frame (
+row.names = colnames(countData),
+Color = c("Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull"),
+Sex = c("Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female"),
+Population = c("Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero"))
+stickleDesign
+#Process
+dds <- DESeqDataSetFromMatrix (countData=countData, colData=stickleDesign, design = ~Color)
+dds <- DESeq(dds)
+head(dds)
+res<-results(dds)
+head(res)
+#Review and export (being careful with csv because interprets some cells incorrectly as dates)
+resOrdered <- res[order(res$padj),]
+head(resOrdered, 10)
+write.csv(as.data.frame(resOrdered), file="StDESeqColorOnly040919")
+#then used Biomart (Ensembl) to convert genes to zebrafish genes for GOrilla. Deleted all but one copy for stickleback genes with multiple zebrafish orthologs (leaving just first or just last, as described in MS).
+# For other DESeq analyses made reduced data sets in Excel, as appropriate, and ran using appropriately (slightly) modified code. Merged each DESeq output with Excel file summarizing key gene info from Ensembl 100 and indicating which genes were known pigment or QTL interval genes. Sorted to compile lists of genes of interest. To compare results for different analyses, merged in Excel by Gene.stable.ID and sorted to compile lists of genes significant in multiple comparisons.
