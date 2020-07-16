@@ -1,0 +1,602 @@
+library(WGCNA)
+library(flashClust)
+options(stringsAsFactors = FALSE)
+#First run WGCNA on Mat fish,  Begn by calling data
+dis0 <- read.csv("stickleback_vsd.throats,HalfPlusExprsdMAT,ZerosRmvd120319.csv")
+head(dis0)
+names(dis0)
+dim(dis0)
+dis=dis0[c(1:15)]
+dim(dis)
+names(dis)
+rownames(dis) <- dis$X
+datExpr0= as.data.frame(t(dis[, -c(1)]))
+names(datExpr0)= dis$X
+rownames(datExpr0)=names(dis)[-c(1)]
+dim(datExpr0)
+
+#Traits
+traitData= read.csv("traits.throatsMats101819.csv")
+dim(traitData)
+head(traitData, n=15)
+names(traitData)
+rownames(traitData) <- traitData$Sample
+traitData$Sample <- NULL
+datTraits= traitData
+
+#-----Sample dendrogram and traits
+A=adjacency(t(datExpr0),type="signed")
+#-----Calculate whole network connectivity
+k=as.numeric(apply(A,2,sum))-1
+#-----Standardized connectivity
+Z.k=scale(k)
+thresholdZ.k=-100 
+outlierColor=ifelse(Z.k<thresholdZ.k,"red","black")
+sampleTree = flashClust(as.dist(1-A), method = "average")
+#-----Convert traits to colors
+traitColors=data.frame(numbers2colors(datTraits,signed=FALSE))
+dimnames(traitColors)[[2]]=paste(names(datTraits))
+datColors=data.frame(outlier=outlierColor,traitColors)
+
+#-----Plot the sample dendrogram
+plotDendroAndColors(sampleTree,groupLabels=names(datColors),
+                    colors=datColors,main="Sample dendrogram and trait heatmap")
+
+#marginal outlier dealt with by raising threshholdZ.k to -3.5 or beyond
+remove.samples= Z.k<thresholdZ.k | is.na(Z.k)
+datExpr0=datExpr0[!remove.samples,]
+datTraits=datTraits[!remove.samples,]
+A=adjacency(t(datExpr0),type="distance")
+k=as.numeric(apply(A,2,sum))-1
+Z.k=scale(k)
+save(datExpr0, datTraits, file="MathroatSamplesAndTraits1018,19.RData")
+options(stringsAsFactors = FALSE)
+lnames= load(file="MathroatSamplesAndTraits1018,19.RData")
+lnames
+dim(datExpr0)
+dim(datTraits)
+powers= c(seq(1,10,by=0.5), seq(from =12, to=40, by=2)) #choosing a set of soft-thresholding powers
+sft = pickSoftThreshold(datExpr0, powerVector=powers, verbose =5,networkType="signed")
+
+#Inspect and continue
+par(mfrow= c(1,2))
+cex1=0.9
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab= "Soft Threshold (power)", ylab="Scale Free Topology Model Fit, signed", type= "n", main= paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers, cex=cex1, col="red")
+abline(h=0.90, col="red")
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab= "Soft Threshold (power)", ylab="Mean Connectivity", type="n", main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+
+#soft Threshhold (power) needs to be high, 34
+softPower=34
+adjacency=adjacency(datExpr0, power=softPower,  type="signed") 
+TOM= TOMsimilarity(adjacency, TOMType="signed")
+dissTOM= 1-TOM
+geneTree= flashClust(as.dist(dissTOM), method="average")
+plot(geneTree, xlab="", sub="", main= "Gene Clustering on TOM-based dissimilarity", labels= FALSE, hang=0.04)
+
+#Modules
+minModuleSize=30 
+dynamicMods= cutreeDynamic(dendro= geneTree, distM= dissTOM, deepSplit=2, pamRespectsDendro= FALSE, minClusterSize= minModuleSize)
+table(dynamicMods)
+dynamicColors= labels2colors(dynamicMods)
+plotDendroAndColors(geneTree, dynamicColors, "Dynamic Tree Cut", dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang= 0.05, main= "Gene dendrogram and module colors")
+
+#Merging
+MEList= moduleEigengenes(datExpr0, colors= dynamicColors)
+MEs= MEList$eigengenes
+#Calculate dissimilarity of module eigenegenes
+MEDiss= 1-cor(MEs)
+#Cluster module eigengenes
+METree= flashClust(as.dist(MEDiss), method= "average")
+
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+MEDissThres= 0.25
+abline(h=MEDissThres, col="red")
+merge= mergeCloseModules(datExpr0, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors= merge$colors
+mergedMEs= merge$newMEs
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+
+moduleColors= mergedColors
+colorOrder= c("grey", standardColors(50))
+moduleLabels= match(moduleColors, colorOrder)-1
+MEs=mergedMEs
+save(MEs, moduleLabels, moduleColors, geneTree, file= "SamplesAndColors_minMod30_merge25_signed.Matthroat.RData")
+
+#Inspect, carry on
+datt=datExpr0
+#-----Define numbers of genes and samples
+nGenes = ncol(datt);
+nSamples = nrow(datt);
+#-----Recalculate MEs with color labels
+MEs0 = moduleEigengenes(datt, moduleColors)$eigengenes
+MEs = orderMEs(MEs0)
+
+#Correlations of genes with eigengenes
+moduleGeneCor=cor(MEs,datt)
+moduleGenePvalue = corPvalueStudent(moduleGeneCor, nSamples);
+
+moduleTraitCor = cor(MEs, datTraits, use = "p");
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
+#---------------------Module-trait heatmap
+textMatrix = paste(signif(moduleTraitCor, 2), "\n(",
+                   signif(moduleTraitPvalue, 1), ")", sep = "");
+dim(textMatrix) = dim(moduleTraitCor)
+par(mar = c(6, 8.5, 3, 3));
+# Display the correlation values within a heatmap plot
+labeledHeatmap(Matrix = moduleTraitCor,
+               xLabels = names(datTraits),
+               yLabels = names(MEs),
+               ySymbols = names(MEs),
+               colorLabels = FALSE,
+               colors = blueWhiteRed(50),
+               textMatrix = textMatrix,
+               setStdMargins = FALSE,
+               cex.text = 0.3,
+               zlim = c(-1,1),
+               main = paste("Module-trait relationships"))
+               
+ #Export module colors
+ write.csv(moduleColors, "MATmoduleColors.csv")
+ #Some plots
+ whichTrait="Color" #Replace this with the trait of interest
+
+nGenes = ncol(datt);
+nSamples = nrow(datt);
+selTrait = as.data.frame(datTraits[,whichTrait]);
+names(selTrait) = whichTrait
+modNames = substring(names(MEs), 3)
+geneModuleMembership = as.data.frame(signedKME(datt, MEs));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+geneTraitSignificance = as.data.frame(cor(datt, selTrait, use = "p"));
+GSPvalue = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificance), nSamples));
+names(geneTraitSignificance) = paste("GS.", names(selTrait), sep="");
+names(GSPvalue) = paste("p.GS.", names(selTrait), sep="");
+par(mfrow=c(2,3))
+counter=0
+for(module in modNames[1:length(modNames)]){
+  counter=counter+1
+  if (counter>2) {
+    par(mfrow=c(2,3))
+    counter=1
+  }
+  column = match(module, modNames);
+  moduleGenes = moduleColors==module;
+  verboseScatterplot(abs(geneModuleMembership[moduleGenes, column]),
+                     abs(geneTraitSignificance[moduleGenes, 1]),
+                     xlab = paste(module,"module membership"),
+                     ylab = paste("GS for", whichTrait),
+                     col = module,mgp=c(2.3,1,0))
+}
+#Another plot
+which.module="orangered3" #replace with module of interest
+datME=MEs
+datExpr=datt
+ME=datME[, paste("ME",which.module, sep="")]
+par(mfrow=c(2,1), mar=c(0.3, 5.5, 3, 2))
+plotMat(t(scale(datExpr[,moduleColors==which.module ]) ),
+        nrgcols=30,rlabels=F,rcols=which.module,
+        main=which.module, cex.main=2)
+par(mar=c(5, 4.2, 0, 0.7))
+barplot(ME, col=which.module, main="", names.arg=c(row.names(datt)), cex.names=0.30, cex.main=2,
+        ylab="eigengene expression",xlab="sample")
+        
+#Saving files
+colorh = moduleColors
+hubs = chooseTopHubInEachModule(datExpr, colorh)
+hubs
+write.csv(hubs, file = "hubs1018,19,WGCNATrimmedDataMatMNZ120319.csv")
+write.csv(MEs, file = "MEs1018,19,WGCNATrimmedDataMatMNZ120319.csv")
+head(MEs)
+#More
+write.csv(moduleTraitPvalue, file = "moduleTraitPvalue1018,19,WGCNATrimmedDataMatMNZ120319.csv")
+head(moduleTraitPvalue, n=24)
+#More
+head(geneModuleMembership)
+write.csv(geneModuleMembership, file = "geneModuleMembership1018,19,WGCNATrimmedDataMatMNZ120319.csv")
+head(geneTraitSignificance)
+
+
+#Quite separately, run WGCNA on LCS fish, including Salm data  Begin with Data importing
+dis0 <- read.csv("stickleback_vsd.throats,HalfPlusExprsdLC,Salm,MATZerosRmvd120619.csv")
+head(dis0)
+names(dis0)
+dim(dis0)
+dis=dis0[c(1:22)]
+dim(dis)
+names(dis)
+rownames(dis) <- dis$X
+datExpr0= as.data.frame(t(dis[, -c(1)]))
+names(datExpr0)= dis$X
+rownames(datExpr0)=names(dis)[-c(1)]
+dim(datExpr0)
+#Then trait data
+traitData= read.csv("traits.throatsLCSalm120619.csv")
+dim(traitData)
+head(traitData, n=21)
+names(traitData)
+rownames(traitData) <- traitData$Sample
+traitData$Sample <- NULL
+datTraits= traitData
+
+#-----Sample dendrogram and traits
+A=adjacency(t(datExpr0),type="signed")
+#-----Calculate whole network connectivity
+k=as.numeric(apply(A,2,sum))-1
+#-----Standardized connectivity
+Z.k=scale(k)
+thresholdZ.k=-3.5 
+outlierColor=ifelse(Z.k<thresholdZ.k,"red","black")
+sampleTree = flashClust(as.dist(1-A), method = "average")
+#-----Convert traits to colors
+traitColors=data.frame(numbers2colors(datTraits,signed=FALSE))
+dimnames(traitColors)[[2]]=paste(names(datTraits))
+datColors=data.frame(outlier=outlierColor,traitColors)
+
+#-----Plot the sample dendrogram
+plotDendroAndColors(sampleTree,groupLabels=names(datColors),
+                    colors=datColors,main="Sample dendrogram and trait heatmap")
+#Review initial results,  Used -3.5 for threshholdZ.k to retain marginal possible outlier that seemed OK in other analyses
+remove.samples= Z.k<thresholdZ.k | is.na(Z.k)
+datExpr0=datExpr0[!remove.samples,]
+datTraits=datTraits[!remove.samples,]
+A=adjacency(t(datExpr0),type="distance")
+k=as.numeric(apply(A,2,sum))-1
+Z.k=scale(k)
+save(datExpr0, datTraits, file="LC,Salm,MATZerosRmvd120619.RData")
+options(stringsAsFactors = FALSE)
+lnames= load(file="LC,Salm,MATZerosRmvd120619.RData")
+lnames
+dim(datExpr0)
+dim(datTraits)
+powers= c(seq(1,10,by=0.5), seq(from =12, to=40, by=2)) #choosing a set of soft-thresholding powers
+sft = pickSoftThreshold(datExpr0, powerVector=powers, verbose =5,networkType="signed")
+#Inspect and continue
+par(mfrow= c(1,2))
+cex1=0.9
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab= "Soft Threshold (power)", ylab="Scale Free Topology Model Fit, signed", type= "n", main= paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers, cex=cex1, col="red")
+abline(h=0.90, col="red")
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab= "Soft Threshold (power)", ylab="Mean Connectivity", type="n", main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+#Need to use 32 here, which is relatively high, but sample sizes are small
+softPower=32
+adjacency=adjacency(datExpr0, power=softPower,  type="signed") 
+TOM= TOMsimilarity(adjacency, TOMType="signed")
+dissTOM= 1-TOM
+geneTree= flashClust(as.dist(dissTOM), method="average")
+plot(geneTree, xlab="", sub="", main= "Gene Clustering on TOM-based dissimilarity", labels= FALSE, hang=0.04)
+#Modules
+minModuleSize=30 
+dynamicMods= cutreeDynamic(dendro= geneTree, distM= dissTOM, deepSplit=2, pamRespectsDendro= FALSE, minClusterSize= minModuleSize)
+table(dynamicMods)
+dynamicColors= labels2colors(dynamicMods)
+plotDendroAndColors(geneTree, dynamicColors, "Dynamic Tree Cut", dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang= 0.05, main= "Gene dendrogram and module colors")
+#Inspect and continue
+MEList= moduleEigengenes(datExpr0, colors= dynamicColors)
+MEs= MEList$eigengenes
+#Calculate dissimilarity of module eigenegenes
+MEDiss= 1-cor(MEs)
+#Cluster module eigengenes
+METree= flashClust(as.dist(MEDiss), method= "average")
+
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+MEDissThres= 0.25
+abline(h=MEDissThres, col="red")
+merge= mergeCloseModules(datExpr0, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors= merge$colors
+mergedMEs= merge$newMEs
+
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+
+moduleColors= mergedColors
+colorOrder= c("grey", standardColors(50))
+moduleLabels= match(moduleColors, colorOrder)-1
+MEs=mergedMEs
+
+save(MEs, moduleLabels, moduleColors, geneTree, file= "SamplesAndColors_minMod30_merge25_signed.LC,Salm,MATZerosRmvd120619.RData")
+#29 modules, quite substantial
+datt=datExpr0
+#-----Define numbers of genes and samples
+nGenes = ncol(datt);
+nSamples = nrow(datt);
+#-----Recalculate MEs with color labels
+MEs0 = moduleEigengenes(datt, moduleColors)$eigengenes
+MEs = orderMEs(MEs0)
+#Inspect and continue
+
+moduleGeneCor=cor(MEs,datt)
+moduleGenePvalue = corPvalueStudent(moduleGeneCor, nSamples);
+
+moduleTraitCor = cor(MEs, datTraits, use = "p");
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
+
+#---------------------Module-trait heatmap
+textMatrix = paste(signif(moduleTraitCor, 2), "\n(",
+                   signif(moduleTraitPvalue, 1), ")", sep = "");
+dim(textMatrix) = dim(moduleTraitCor)
+par(mar = c(6, 8.5, 3, 3));
+# Display the correlation values within a heatmap plot
+labeledHeatmap(Matrix = moduleTraitCor,
+               xLabels = names(datTraits),
+               yLabels = names(MEs),
+               ySymbols = names(MEs),
+               colorLabels = FALSE,
+               colors = blueWhiteRed(50),
+               textMatrix = textMatrix,
+               setStdMargins = FALSE,
+               cex.text = 0.3,
+               zlim = c(-1,1),
+               main = paste("Module-trait relationships"))
+#Module colors
+write.csv(moduleColors, "LC,Salm,MATZerosRmvd120619moduleColors.csv")
+#Plots
+whichTrait="Color" #Replace this with the trait of interest
+
+nGenes = ncol(datt);
+nSamples = nrow(datt);
+selTrait = as.data.frame(datTraits[,whichTrait]);
+names(selTrait) = whichTrait
+modNames = substring(names(MEs), 3)
+geneModuleMembership = as.data.frame(signedKME(datt, MEs));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+geneTraitSignificance = as.data.frame(cor(datt, selTrait, use = "p"));
+GSPvalue = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificance), nSamples));
+names(geneTraitSignificance) = paste("GS.", names(selTrait), sep="");
+names(GSPvalue) = paste("p.GS.", names(selTrait), sep="");
+par(mfrow=c(2,3))
+counter=0
+for(module in modNames[1:length(modNames)]){
+  counter=counter+1
+  if (counter>2) {
+    par(mfrow=c(2,3))
+    counter=1
+  }
+  column = match(module, modNames);
+  moduleGenes = moduleColors==module;
+  verboseScatterplot(abs(geneModuleMembership[moduleGenes, column]),
+                     abs(geneTraitSignificance[moduleGenes, 1]),
+                     xlab = paste(module,"module membership"),
+                     ylab = paste("GS for", whichTrait),
+                     col = module,mgp=c(2.3,1,0))
+}
+#Heatmap
+which.module="black" #replace with module of interest
+datME=MEs
+datExpr=datt
+ME=datME[, paste("ME",which.module, sep="")]
+par(mfrow=c(2,1), mar=c(0.3, 5.5, 3, 2))
+plotMat(t(scale(datExpr[,moduleColors==which.module ]) ),
+        nrgcols=30,rlabels=F,rcols=which.module,
+        main=which.module, cex.main=2)
+par(mar=c(5, 4.2, 0, 0.7))
+barplot(ME, col=which.module, main="", names.arg=c(row.names(datt)), cex.names=0.30, cex.main=2,
+        ylab="eigengene expression",xlab="sample")
+#Save some files
+colorh = moduleColors
+hubs = chooseTopHubInEachModule(datExpr, colorh)
+hubs
+#Also
+write.csv(hubs, file = "hubsLC,Salm,MATZerosRmvd120619.csv")
+write.csv(MEs, file = "MEsLC,Salm,MATZerosRmvd120619.csv")
+head(MEs)
+#Also
+write.csv(geneModuleMembership, file = "geneModuleMembershipLC,Salm,MATZerosRmvd120619.csv")
+head(geneTraitSignificance)
+
+#Now will run the preservation analysis
+disB= read.csv("stickleback_vsd.throats,HalfPlusExprsdLC,Salm,MATZerosRmvd120619.csv")
+head(disB)
+names(disB)
+#disB=disB[c(1:13)]
+dim(disB)
+names(disB)
+rownames(disB) <- disB$X
+datExprB= as.data.frame(t(disB[, -c(1)]))
+names(datExprB)= disB$X
+rownames(datExprB)=names(disB)[-c(1)]
+dim(datExprB)
+#Then
+disM= read.csv("stickleback_vsd.throats,HalfPlusExprsdMAT,ZerosRmvd120319.csv")
+head(disM)
+names(disM)
+#disB=disB[c(1:13)]
+dim(disM)
+names(disM)
+rownames(disM) <- disM$X
+datExprM= as.data.frame(t(disM[, -c(1)]))
+names(datExprM)= disM$X
+rownames(datExprM)=names(disM)[-c(1)]
+dim(datExprM)
+
+#Files used next had to have extra x's at the top removed to run, seemed artifacts
+colorBC <- read.csv("LC,Salm,MATZerosRmvd120619moduleColors.csv", header=F)$V2
+colorMAT<- read.csv("MATmoduleColors.csv",header=F)$V2
+head(colorBC, n=50)
+tail(colorMAT)
+
+# Number of data sets that we work with
+nSets = 2;
+# Object that will contain the expression data
+multiExpr = list();
+multiExpr[[1]] = list(data = datExprB);
+multiExpr[[2]] = list(data = datExprM);
+# Names for the two sets
+setLabels = c("BC", "MAT");
+# Important: components of multiExpr must carry identificating names
+names(multiExpr) = setLabels
+# Display the dimensions of the expression data (if you are confused by this construct, ignore it):
+lapply(multiExpr, lapply, dim)
+
+# Create an object (list) holding the module labels for each set:
+colorList = list(colorBC, colorMAT);
+# Components of the list must be named so that the names can be matched to the names of multiExpr
+names(colorList) = setLabels
+head(colorList)
+
+#Now a big, long step
+# Module Preservation Statistics
+# this takes a while
+system.time( {
+  mp = modulePreservation(multiExpr, colorList,
+                          referenceNetworks = c(1:2),
+                          loadPermutedStatistics = FALSE,
+                          nPermutations = 200,
+                          verbose = 3)
+} );
+# Save the results
+save(mp, file = "LC,Salm,MATZerosRmvd120619.RData")
+
+#Then
+# More Statistics - In Group Proportion
+library(clusterRepro)
+library(impute)
+impExpr = list()
+for (set in 1:nSets)
+{
+  impExpr[[set]] = list(data = t(impute.knn(t(multiExpr[[set]]$data))$data));
+}
+eigengenes = list()
+for (set in 1:nSets)
+{
+  eigengenes[[set]] = multiSetMEs(impExpr, universalColors = colorList[[set]], excludeGrey = TRUE);
+  for (ss in 1:nSets)
+  {
+    rownames(eigengenes[[set]][[ss]]$data) = rownames(multiExpr[[ss]]$data)
+  }
+}
+
+#Now to extract stats from that
+ref = 1
+test = 2
+statsObs = cbind(mp$quality$observed[[ref]][[test]][, -1], mp$preservation$observed[[ref]][[test]][, -1])
+statsZ = cbind(mp$quality$Z[[ref]][[test]][, -1], mp$preservation$Z[[ref]][[test]][, -1]);
+# Compare preservation to quality:
+print( cbind(statsObs[, c("medianRank.pres", "medianRank.qual")],
+           signif(statsZ[, c("Zsummary.pres", "Zsummary.qual")], 2)) )
+write.csv(statsZ, "statsZ,LC,Salm,VsMAT,MATZerosRmvd120619.csv")
+
+#Figures etc
+# Module labels and module sizes are also contained in the results
+modColors = rownames(mp$preservation$observed[[ref]][[test]])
+moduleSizes = mp$preservation$Z[[ref]][[test]][, 1];
+# leave grey and gold modules out
+plotMods = !(modColors %in% c("grey", "gold"));
+# Text labels for points
+text = modColors[plotMods];
+# Auxiliary convenience variable
+plotData = cbind(mp$preservation$observed[[ref]][[test]][, 2], mp$preservation$Z[[ref]][[test]][, 2])
+# Main titles for the plot
+mains = c("Preservation Median rank", "Preservation Zsummary");
+# Start the plot
+sizeGrWindow(10, 5);
+#pdf(fi="Plots/BxHLiverFemaleOnly-modulePreservation-Zsummary-medianRank.pdf", wi=10, h=5)
+par(mfrow = c(1,2))
+par(mar = c(4.5,4.5,2.5,1))
+for (p in 1:2)
+{
+  min = min(plotData[, p], na.rm = TRUE);
+  max = max(plotData[, p], na.rm = TRUE);
+  # Adjust ploting ranges appropriately
+  if (p==2)
+  {
+    if (min > -max/10) min = -max/10
+    ylim = c(min - 0.1 * (max-min), max + 0.1 * (max-min))
+  } else
+    ylim = c(max + 0.1 * (max-min), min - 0.1 * (max-min))
+  plot(moduleSizes[plotMods], plotData[plotMods, p], col = 1, bg = modColors[plotMods], pch = 21,
+      main = mains[p],
+      cex = 2.4,
+      ylab = mains[p], xlab = "Module size", log = "x",
+      ylim = ylim,
+      xlim = c(10, 2000), cex.lab = 1.2, cex.axis = 1.2, cex.main =1.4)
+  labelPoints(moduleSizes[plotMods], plotData[plotMods, p], text, cex = 1, offs = 0.08);
+  # For Zsummary, add threshold lines
+if (p==2) {
+    abline(h=0)
+    abline(h=2, col = "blue", lty = 2)
+    abline(h=10, col = "darkgreen", lty = 2)
+} }
+
+#Extracting more
+moduleSizes
+modColors
+
+#Now reciprocal analyses
+ref = 2
+test = 1
+statsObs = cbind(mp$quality$observed[[ref]][[test]][, -1], mp$preservation$observed[[ref]][[test]][, -1])
+statsZ = cbind(mp$quality$Z[[ref]][[test]][, -1], mp$preservation$Z[[ref]][[test]][, -1]);
+# Compare preservation to quality:
+print( cbind(statsObs[, c("medianRank.pres", "medianRank.qual")],
+           signif(statsZ[, c("Zsummary.pres", "Zsummary.qual")], 2)) )
+write.csv(statsZ, "statsZ,MATVsLC,Salm,MATZerosRmvd120619.csv")
+
+# Module labels and module sizes are also contained in the results
+modColors = rownames(mp$preservation$observed[[ref]][[test]])
+moduleSizes = mp$preservation$Z[[ref]][[test]][, 1];
+# leave grey and gold modules out
+plotMods = !(modColors %in% c("grey", "gold"));
+# Text labels for points
+text = modColors[plotMods];
+# Auxiliary convenience variable
+plotData = cbind(mp$preservation$observed[[ref]][[test]][, 2], mp$preservation$Z[[ref]][[test]][, 2])
+# Main titles for the plot
+mains = c("Preservation Median rank", "Preservation Zsummary");
+# Start the plot
+sizeGrWindow(10, 5);
+#pdf(fi="Plots/BxHLiverFemaleOnly-modulePreservation-Zsummary-medianRank.pdf", wi=10, h=5)
+par(mfrow = c(1,2))
+par(mar = c(4.5,4.5,2.5,1))
+for (p in 1:2)
+{
+  min = min(plotData[, p], na.rm = TRUE);
+  max = max(plotData[, p], na.rm = TRUE);
+  # Adjust ploting ranges appropriately
+  if (p==2)
+  {
+    if (min > -max/10) min = -max/10
+    ylim = c(min - 0.1 * (max-min), max + 0.1 * (max-min))
+  } else
+    ylim = c(max + 0.1 * (max-min), min - 0.1 * (max-min))
+  plot(moduleSizes[plotMods], plotData[plotMods, p], col = 1, bg = modColors[plotMods], pch = 21,
+      main = mains[p],
+      cex = 2.4,
+      ylab = mains[p], xlab = "Module size", log = "x",
+      ylim = ylim,
+      xlim = c(10, 2000), cex.lab = 1.2, cex.axis = 1.2, cex.main =1.4)
+  labelPoints(moduleSizes[plotMods], plotData[plotMods, p], text, cex = 1, offs = 0.08);
+  # For Zsummary, add threshold lines
+if (p==2) {
+    abline(h=0)
+    abline(h=2, col = "blue", lty = 2)
+    abline(h=10, col = "darkgreen", lty = 2)
+} }
+
+#Then
+moduleSizes
+modColors
+
+#This additional analysis not necessarily useful or viable
+#next step takes a long time
+cr = list()
+set.seed(20)
+for (ref in 1:nSets)
+{
+  cr[[ref]] = list()
+  for (test in 1:nSets)
+  {
+    printFlush(system.time({
+      cr[[ref]][[test]] = clusterRepro(Centroids = as.matrix(eigengenes[[ref]][[test]]$data),
+                                       New.data = as.matrix(impExpr[[test]]$data),
+                                       Number.of.permutations = 10000); }))
+    collectGarbage()
+  }
+}
+# Save the results
+save(cr, file = "LC,Salm,MATZerosRmvd120619_clusterRepro.RData")
