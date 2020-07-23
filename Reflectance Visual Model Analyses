@@ -1,7 +1,7 @@
 library(pavo)
 library(rgl)
 #Importing data and inspecting
-SpecPrel <- getspec("~/Documents/DocsResearch/Female St Color/Newsome, Burns Research/NewsomeSpecData/Files1029,19Analyses", lim=c(350,700))
+SpecPrel <- getspec("~/Files1029,19Analyses", lim=c(350,700))
 Specs <- procspec(SpecPrel, fixneg="zero")
 colnames(Specs)[1] <- "wl"
 head(Specs)
@@ -15,6 +15,7 @@ fish.vision <- read.csv("stickleback.visual.sensitivityJSM1030,19.csv")
 colnames(fish.vision)[1] <- "wl"
 head(fish.vision)
 tail(fish.vision)
+#processing
 fish.vision <- as.rspec(fish.vision, lim=c(350,700))
 head(fish.vision)
 tail(fish.vision)
