@@ -93,6 +93,15 @@ METree= flashClust(as.dist(MEDiss), method= "average")
 plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
 MEDissThres= 0.25
 abline(h=MEDissThres, col="red")
+merge= mergeCloseModules(datExpr0, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors= merge$colors
+mergedMEs= merge$newMEs
+
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+moduleColors= mergedColors
+colorOrder= c("grey", standardColors(50))
+moduleLabels= match(moduleColors, colorOrder)-1
+MEs=mergedMEs
 
 #Inspect, continue
 datt=datExpr0
@@ -103,14 +112,6 @@ nSamples = nrow(datt);
 #-----Recalculate MEs with color labels
 MEs0 = moduleEigengenes(datt, moduleColors)$eigengenes
 MEs = orderMEs(MEs0)
-merge= mergeCloseModules(datExpr0, dynamicColors, cutHeight= MEDissThres, verbose =3)
-mergedColors= merge$colors
-mergedMEs= merge$newMEs
-plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
-moduleColors= mergedColors
-colorOrder= c("grey", standardColors(50))
-moduleLabels= match(moduleColors, colorOrder)-1
-MEs=mergedMEs
 
 #Correlations of genes with eigengenes
 moduleGeneCor=cor(MEs,datt)
