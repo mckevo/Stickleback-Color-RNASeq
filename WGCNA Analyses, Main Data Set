@@ -15,6 +15,7 @@ datExpr0= as.data.frame(t(dis[, -c(1)]))
 names(datExpr0)= dis$X
 rownames(datExpr0)=names(dis)[-c(1)]
 dim(datExpr0)
+#Trait data
 traitData= read.csv("traits.throats0429,19.csv")
 dim(traitData)
 head(traitData)
