@@ -27,15 +27,25 @@ stickleDesignrvec <- stickleDesignrvec[stickleDesignrvec$Population %in% c("Litt
 stickleDesignrvec <- stickleDesignrvec[stickleDesignrvec$Sex %in% c("Female"), ] 
 stickleDesignrvec
 dim(stickleDesignrvec)
+
 #Then run DESeq for interaction
 dds <- DESeqDataSetFromMatrix (countData=countData,
 colData=stickleDesignrvec,
 design = ~ Population + rvec + Population:rvec)
 
-
 dds <- DESeq(dds)
 head(dds)
 res<-results(dds)
 head(res)
-#then used Biomart (Ensembl) to convert genes to zebrafish genes for GOrilla. Deleted all but one copy for stickleback genes with multiple zebrafish orthologs (leaving just first or just last, as described in MS).
+
+resOrdered <- res[order(res$padj),]
+head(resOrdered)
+write.csv(as.data.frame(resOrdered), file="StDESeqrvecLCSMatFemsPopInteraction102320")
+#get results for Chroma (rvec) main effect
+res <- results( dds, name = "rvec") 
+res
+resOrdered <- res[order(res$pvalue),]
+head(resOrdered)
+write.csv(as.data.frame(resOrdered), file="StDESeqrvecLCSMatFemsPopInteraction,rvec102320")
+#Also ran additional analyses separately for females of each population using similar code. Then used Biomart (Ensembl) to convert genes to zebrafish genes for GOrilla. Deleted all but one copy for stickleback genes with multiple zebrafish orthologs (leaving just first or just last, as described in MS). 
 # For other DESeq analyses made reduced data sets in Excel, as appropriate, and ran using appropriately (slightly) modified code. Merged each DESeq output with Excel file summarizing key gene info from Ensembl 100 and indicating which genes were known pigment or QTL interval genes. Sorted to compile lists of genes of interest. To compare results for different analyses, merged in Excel by Gene.stable.ID and sorted to compile lists of genes significant in multiple comparisons.
