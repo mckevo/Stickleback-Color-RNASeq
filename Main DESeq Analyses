@@ -1,24 +1,41 @@
+#Start with first analyses in MS, of pop-chroma (rvec) interaction
 library(DESeq2)
 #Get data, review
 countData <- read.table ("Complete_Throat_Count_Table0328,19.txt", header=TRUE)
 head(countData)
 names(countData)
 #add design and check
-stickleDesign = data.frame (
+stickleDesignrvec = data.frame (
 row.names = colnames(countData),
 Color = c("Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Red",	 "Dull",	 "Dull",	 "Dull",	 "Dull"),
+rvec = c(0.233012295,	0.337860204,	0.254923798,	0.24156223,	0.205261218,	0.255846906,	0.22293876,	0.245104793,	0.401978847,	0.426670958,	0.355727738,	0.387171148,	0.420258171,	0.195736008,	0.207614063,	0.273941764,	0.245213232,	0.199035076,	0.20016372,	0.194909194,	0.217155452,	0.206333627,	0.223465209,	0.217673995,	0.192495763,	0,	0.445836579,	0.395697094,	0.381045796,	0.388134865,	0.406779123,	0.343916966,	0.270945042,	0.322168421,	0.229300506,	0.234969171,	0.246731364,	0.477255384,	0.387716753,	0.437477565,	0.436577381,	0.357723681,	0.41753363,	0.363906619,	0.395920745,	0.356567677,	0.351654107,	0.244684163,	0.236222501,	0.231514189,	0.302330856),
+#note arbitrary 0 value inserted temporarily for missing value of LM1
 Sex = c("Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Male",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female",	 "Female"),
-Population = c("Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Little Campbell",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero"))
-stickleDesign
-#Process
-dds <- DESeqDataSetFromMatrix (countData=countData, colData=stickleDesign, design = ~Color)
+Population = c("Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Anadromous",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Salmon",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Bonsall",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Little_Campbell",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero",	 "Matadero"))
+names(stickleDesignrvec)
+#Process to retain only needed data
+#removing missing value
+countData$LM_T1 <- NULL
+#filter()
+countData <- countData[ , c("LFCT10", "LFCT1", "LFCT2",  "LFCT4", "LFCT7",  "LFDT2",  "LFDT4",  "LFDT6",  "MFCT2",  "MFCT4",  "MFCT6",  "MFCT7",  "MFDT1",  "MFDT4",  "MFDT5", "MFDT6")] 
+dim(countData)
+head(countData)
+names(countData)
+#revise design
+stickleDesignrvec <- stickleDesignrvec[-c(26),] 
+stickleDesignrvec <- stickleDesignrvec[stickleDesignrvec$Population %in% c("Little_Campbell", "Matadero"), ] 
+stickleDesignrvec <- stickleDesignrvec[stickleDesignrvec$Sex %in% c("Female"), ] 
+stickleDesignrvec
+dim(stickleDesignrvec)
+#Then run DESeq for interaction
+dds <- DESeqDataSetFromMatrix (countData=countData,
+colData=stickleDesignrvec,
+design = ~ Population + rvec + Population:rvec)
+
+
 dds <- DESeq(dds)
 head(dds)
 res<-results(dds)
 head(res)
-#Review and export (being careful with csv because interprets some cells incorrectly as dates)
-resOrdered <- res[order(res$padj),]
-head(resOrdered, 10)
-write.csv(as.data.frame(resOrdered), file="StDESeqColorOnly040919")
 #then used Biomart (Ensembl) to convert genes to zebrafish genes for GOrilla. Deleted all but one copy for stickleback genes with multiple zebrafish orthologs (leaving just first or just last, as described in MS).
 # For other DESeq analyses made reduced data sets in Excel, as appropriate, and ran using appropriately (slightly) modified code. Merged each DESeq output with Excel file summarizing key gene info from Ensembl 100 and indicating which genes were known pigment or QTL interval genes. Sorted to compile lists of genes of interest. To compare results for different analyses, merged in Excel by Gene.stable.ID and sorted to compile lists of genes significant in multiple comparisons.
